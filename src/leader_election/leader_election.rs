@@ -7,10 +7,10 @@ use crate::{Server, Message};
 pub async fn start_election(server: Arc<Mutex<Server>>, tx: &mpsc::Sender<Message>) {
     let mut server = server.lock().unwrap();
 
-    // Your leader election logic goes here
-
-    // For illustration purposes, let's assume a simple election where a candidate sends
-    // RequestVote messages to other servers.
+    // check if server is not a leader
+    if server.state != ServerState::Leader {
+        return;
+    }
 
     server.state = ServerState::Candidate;
     server.current_term += 1;
