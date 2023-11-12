@@ -17,14 +17,14 @@ fn main() {
     // todo: add command line arguments to change the number of servers, hostname, and ports
 
     // create a vector of servers
-    let mut servers: Vec<ServerMetaData> = vec![];
+    let mut cluster: Vec<ServerMetaData> = vec![];
 
     for i in 1..num_servers {
-        servers.push(Server::init(i, hostname.clone(), port_vec[i]));
+        cluster.push(Server::init(i, hostname.clone(), port_vec[i]));
     }
 
     // start the servers
-    for server in servers.iter_mut() {
+    for server in cluster.iter_mut() {
         server.run();
     }
 
