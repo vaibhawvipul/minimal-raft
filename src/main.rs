@@ -3,6 +3,7 @@ mod log_replication;
 mod safety;
 mod server;
 
+use server::Server;
 use leader_election::leader_election;
 use log_replication::{log_replication, append_entries_args};
 use safety::apply_safety_rules;
@@ -53,16 +54,17 @@ fn start_worker(server: Arc<Mutex<Server>>, tx: &mpsc::Sender<Message>) {
 
 #[tokio::main]
 async fn main() {
-    // ... initialization code ...
+    // ask how many servers are in the cluster, default is 3
+    let mut num_servers = 3;
+    if let Some(arg) = std::env::args().nth(1) {
+        num_servers = arg.parse::<u64>().unwrap();
+    }
+    // create a vector of servers
+    let mut servers = vec![];
 
-    let (tx, rx) = mpsc::channel::<Message>(1024);
-
-    let server = tokio::spawn(Server::run(rx));
-
-    // Example: Send a message to the server
-    tx.send(Message::AppendEntries(/*...*/)).await.unwrap();
-
-    // ... more code ...
+    for i in 1..num_servers {
+        servers.push(Server::init(i));
+    }
 
     server.await.unwrap();
 }

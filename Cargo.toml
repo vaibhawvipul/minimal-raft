@@ -7,3 +7,4 @@ edition = "2021"
 
 [dependencies]
 tokio = "1.34.0"
+rand = "0.8.5"

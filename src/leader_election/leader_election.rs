@@ -1,8 +1,9 @@
-use tokio::sync::mpsc;
-use std::time::Duration;
+use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
-
-use crate::{Server, Message};
+use std::sync::atomic::Ordering;
+use rand::Rng;
+use crate::server::{RequestVoteArgs, Server, ServerState};
+use crate::server::Message;
 
 pub async fn start_election(server: Arc<Mutex<Server>>, tx: &mpsc::Sender<Message>) {
     let mut server = server.lock().unwrap();
@@ -13,17 +14,24 @@ pub async fn start_election(server: Arc<Mutex<Server>>, tx: &mpsc::Sender<Messag
     }
 
     server.state = ServerState::Candidate;
-    server.current_term += 1;
+    server.current_term.fetch_add(1, Ordering::Relaxed);
+
+    // vote for self
     server.voted_for = Some(server.id);
 
-    // Send RequestVote to all other servers
+    // request for votes from other servers
     let request_vote_args = RequestVoteArgs {
-        term: server.current_term,
+        term: server.current_term.clone(),
         candidate_id: server.id,
         last_log_index: server.log.len() as u64,
-        last_log_term: server.current_term,
     };
+
+    // send request vote to all other servers
     for _ in 1..=3 {
         tx.send(Message::RequestVote(request_vote_args.clone())).await.unwrap();
     }
+
+    // reset election timeout
+    server.election_timeout = rand::thread_rng().gen_range((150, 300));
+    
 }
