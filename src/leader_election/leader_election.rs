@@ -2,10 +2,10 @@ use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::Ordering;
 use rand::Rng;
-use crate::server::{RequestVoteArgs, Server, ServerState};
+use crate::server::{RequestVoteArgs, Server, ServerMetaData, ServerState};
 use crate::server::Message;
 
-pub async fn start_election(server: Arc<Mutex<Server>>, tx: &mpsc::Sender<Message>) {
+pub async fn start_election(server: Arc<Mutex<ServerMetaData>>, tx: &mpsc::Sender<Message>) {
     let mut server = server.lock().unwrap();
 
     // check if server is not a leader
@@ -33,5 +33,5 @@ pub async fn start_election(server: Arc<Mutex<Server>>, tx: &mpsc::Sender<Messag
 
     // reset election timeout
     server.election_timeout = rand::thread_rng().gen_range((150, 300));
-    
+
 }

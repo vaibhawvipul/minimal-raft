@@ -4,13 +4,14 @@ use std::sync::mpsc::{Receiver, Sender};
 use rand::Rng;
 use std::thread;
 use std::time::Duration;
+use crate::leader_election::leader_election::start_election;
 
 pub enum ServerState {
     Follower,
     Candidate,
     Leader,
 }
-pub struct Server {
+pub struct ServerMetaData {
     pub id: u64,
     pub current_term: atomic::AtomicU64,
     pub voted_for: Option<u64>,
@@ -18,6 +19,8 @@ pub struct Server {
     pub commit_index: u64,
     pub state: ServerState,
     pub election_timeout: u64, // 150-300ms
+    pub hostname: String,
+    pub port: u64,
 }
 
 // define Message enum
@@ -43,10 +46,10 @@ pub struct RequestVoteArgs {
 }
 
 // server trait
-trait ServerTrait {
-    fn init(id: u64) -> Self;
+pub trait Server {
+    fn init(id: u64, hostname: String, port: u64) -> Self;
 
-    fn run() -> Self;
+    fn run(&mut self) -> self;
 
     fn run_election_timeout(&mut self, rx: Receiver<Message>) -> self;
 
@@ -63,8 +66,8 @@ trait ServerTrait {
     fn handle_request_vote(&mut self, tx: Sender<Message>) -> self;
 }
 
-impl ServerTrait for Server {
-    fn init(id: u64) -> Self {
+impl Server for ServerMetaData {
+    fn init(id: u64, hostname: String, port: u64) -> Self {
         Server {
             id,
             current_term: AtomicU64::new(0),
@@ -73,18 +76,24 @@ impl ServerTrait for Server {
             commit_index: 0,
             state: ServerState::Follower,
             election_timeout: 0,
+            hostname,
+            port,
         }
     }
 
-    // election time out should be running in background
+    // run will call a function from leader
+    fn run(&mut self) -> Self {
+
+        // start election timeoout
+        todo!()
+    }
+
     fn run_election_timeout(&mut self, rx: Receiver<Message>) -> self {
         // election timeout should be random between 150-300ms
         let election_timeout = rand::thread_rng().gen_range((150, 300));
         self.election_timeout = election_timeout;
         let mut server = self.clone();
 
-        // start a timeout in thread,
-        // it get interrupted when receive a message till election_timout else it will start election
         thread::spawn(move || {
             loop {
                 match rx.recv_timeout(Duration::from_millis(server.election_timeout)) {
@@ -112,38 +121,27 @@ impl ServerTrait for Server {
         self
     }
 
-    // start election will call a function from leader
-    fn start_election(&mut self, tx: Sender<Message>) -> self {
-        todo!()
-    }
-
-    // send heartbeat will call a function from leader
     fn send_heartbeat(&mut self, tx: Sender<Message>) -> self {
         todo!()
     }
 
-    // send append entries will call a function from leader
+    fn start_election(&mut self, tx: Sender<Message>) -> self {
+        todo!()
+    }
+
     fn send_append_entries(&mut self, tx: Sender<Message>) -> self {
         todo!()
     }
 
-    // send request vote will call a function from leader
     fn send_request_vote(&mut self, tx: Sender<Message>) -> self {
         todo!()
     }
 
-    // handle append entries will call a function from leader
     fn handle_append_entries(&mut self, tx: Sender<Message>) -> self {
         todo!()
     }
 
-    // handle request vote will call a function from leader
     fn handle_request_vote(&mut self, tx: Sender<Message>) -> self {
-        todo!()
-    }
-
-    // run will call a function from leader
-    fn run() -> Self {
         todo!()
     }
 }
