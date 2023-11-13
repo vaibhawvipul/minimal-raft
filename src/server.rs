@@ -6,7 +6,7 @@ use rand::Rng;
 use std::thread;
 use std::time::Duration;
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone)]
 pub enum ServerState {
     Follower,
     Candidate,
@@ -41,6 +41,7 @@ pub struct AppendEntriesArgs {
 }
 
 // define RequestVoteArgs struct
+#[derive(Clone)]
 pub struct RequestVoteArgs {
     pub term: u64,
     pub candidate_id: u64,
@@ -70,7 +71,7 @@ pub trait Server {
 
 impl Server for ServerMetaData {
     fn init(id: u64, hostname: String, port: u64) -> Self {
-        Server {
+        ServerMetaData {
             id,
             current_term: 0,
             voted_for: None,
@@ -78,9 +79,9 @@ impl Server for ServerMetaData {
             commit_index: 0,
             state: ServerState::Follower,
             election_timeout: 0,
-            hostname,
+            hostname: hostname.clone(),
             port,
-            listener: TcpListener::bind(format!("{}:{}", hostname, port)).unwrap(),
+            listener: TcpListener::bind(format!("{}:{}", hostname.clone(), port)).unwrap(),
         }
     }
 
@@ -101,15 +102,26 @@ impl Server for ServerMetaData {
         todo!()
     }
 
-    fn run_election_timeout(&mut self, listener: TcpListener) -> self {
+    fn run_election_timeout(&mut self, listener: TcpListener) -> Self {
 
         // check if you are leader, if so, don't run election timeout
         if self.state == ServerState::Leader {
-            return self;
+            return Self {
+                id: self.id,
+                current_term: self.current_term,
+                voted_for: self.voted_for,
+                log: self.log.clone(),
+                commit_index: self.commit_index,
+                state: self.state.clone(),
+                election_timeout: self.election_timeout,
+                hostname: self.hostname.clone(),
+                port: self.port,
+                listener: self.listener.try_clone().unwrap(),
+            };
         }
 
         // election timeout should be random between 150-300ms
-        let election_timeout = rand::thread_rng().gen_range((150, 300));
+        let election_timeout = rand::thread_rng().gen_range(150..300);
         self.election_timeout = election_timeout;
 
         // spawn a thread to listen to server.port, tcp
@@ -119,25 +131,47 @@ impl Server for ServerMetaData {
 
                 // if you receive a message, reset election timeout, else, start election
                 if stream.bytes().next().is_some() {
-                    self.election_timeout = rand::thread_rng().gen_range((150, 300));
+                    self.election_timeout = rand::thread_rng().gen_range(150..300);
                 } else {
-                    self.start_leader_election();
+                    self.start_leader_election(vec![]);
                 }
 
             }
         });
 
-        self
+        Self {
+            id: self.id,
+            current_term: self.current_term,
+            voted_for: self.voted_for,
+            log: self.log.clone(),
+            commit_index: self.commit_index,
+            state: self.state.clone(),
+            election_timeout: self.election_timeout,
+            hostname: self.hostname.clone(),
+            port: self.port,
+            listener: self.listener.try_clone().unwrap(),
+        }
     }
 
-    fn send_heartbeat(&mut self) -> self {
+    fn send_heartbeat(&mut self) -> Self {
         todo!()
     }
 
-    fn start_leader_election(&mut self, mut cluster: Vec<ServerMetaData>) -> self {
+    fn start_leader_election(&mut self, mut cluster: Vec<ServerMetaData>) -> Self {
 
         if self.state != ServerState::Leader {
-            return self;
+            return Self {
+                id: self.id,
+                current_term: self.current_term,
+                voted_for: self.voted_for,
+                log: self.log.clone(),
+                commit_index: self.commit_index,
+                state: self.state.clone(),
+                election_timeout: self.election_timeout,
+                hostname: self.hostname.clone(),
+                port: self.port,
+                listener: self.listener.try_clone().unwrap(),
+            };
         }
 
         // change state to candidate
@@ -181,28 +215,39 @@ impl Server for ServerMetaData {
         if votes > cluster.len() / 2 {
             self.state = ServerState::Leader;
             // reset election timeout
-            self.election_timeout = rand::thread_rng().gen_range((150, 300));
+            self.election_timeout = rand::thread_rng().gen_range(150..300);
         } else {
             // failed election
             self.state = ServerState::Follower;
         }
 
-        self
+        Self {
+            id: self.id,
+            current_term: self.current_term,
+            voted_for: self.voted_for,
+            log: self.log.clone(),
+            commit_index: self.commit_index,
+            state: self.state.clone(),
+            election_timeout: self.election_timeout,
+            hostname: self.hostname.clone(),
+            port: self.port,
+            listener: self.listener.try_clone().unwrap(),
+        }
     }
 
-    fn send_append_entries(&mut self) -> self {
+    fn send_append_entries(&mut self) -> Self {
         todo!()
     }
 
-    fn send_request_vote(&mut self, request_vote_args: RequestVoteArgs) -> self {
+    fn send_request_vote(&mut self, request_vote_args: RequestVoteArgs) -> Self {
         todo!()
     }
 
-    fn handle_append_entries(&mut self) -> self {
+    fn handle_append_entries(&mut self) -> Self {
         todo!()
     }
 
-    fn handle_request_vote(&mut self) -> self {
+    fn handle_request_vote(&mut self) -> Self {
         todo!()
     }
 }
