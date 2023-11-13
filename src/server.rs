@@ -6,12 +6,14 @@ use rand::Rng;
 use std::thread;
 use std::time::Duration;
 
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Clone, Debug)]
 pub enum ServerState {
     Follower,
     Candidate,
     Leader,
 }
+
+#[derive(Debug)]
 pub struct ServerMetaData {
     pub id: u64,
     pub current_term: u64,
@@ -26,12 +28,14 @@ pub struct ServerMetaData {
 }
 
 // define Message enum
+#[derive(Clone, Debug)]
 pub enum Message {
     AppendEntries(AppendEntriesArgs),
     RequestVote(RequestVoteArgs),
 }
 
-// define AppendEntriesArgs struct
+// define AppendEntriesArgs
+#[derive(Clone, Debug)]
 pub struct AppendEntriesArgs {
     pub term: u64,
     pub leader_id: u64,
@@ -41,7 +45,7 @@ pub struct AppendEntriesArgs {
 }
 
 // define RequestVoteArgs struct
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct RequestVoteArgs {
     pub term: u64,
     pub candidate_id: u64,
@@ -54,17 +58,17 @@ pub trait Server {
 
     fn run(&mut self, cluster: Vec<ServerMetaData>) -> Self;
 
-    fn run_election_timeout(&mut self, listener: TcpListener) -> Self;
+    fn run_election_timeout(&mut self, cluster: Vec<ServerMetaData>) -> Self;
 
     fn send_heartbeat(&mut self) -> Self;
 
     fn start_leader_election(&mut self, cluster: Vec<ServerMetaData>) -> Self;
 
-    fn send_append_entries(&mut self) -> Self;
+    fn send_append_entries<T>(&mut self, x: Box<T>) -> Self;
 
     fn send_request_vote(&mut self, request_vote_args: RequestVoteArgs) -> Self;
 
-    fn handle_append_entries(&mut self) -> Self;
+    fn handle_append_entries(&mut self, cluster: Vec<ServerMetaData>);
 
     fn handle_request_vote(&mut self) -> Self;
 }
@@ -88,21 +92,23 @@ impl Server for ServerMetaData {
     // run will call a function from leader
     fn run(&mut self, cluster: Vec<ServerMetaData>) -> Self {
 
-        self.run_election_timeout(self.listener.try_clone().unwrap());
+        self.run_election_timeout(cluster);
 
         if self.state == ServerState::Leader {
             // run leader function
+            self.handle_append_entries(vec![]);
 
         } else if self.state == ServerState::Candidate {
             // run candidate function
+            self.handle_request_vote();
 
         } else {
-            // run follower function
+            println!("Follower... Manual intervention required!");
         }
         todo!()
     }
 
-    fn run_election_timeout(&mut self, listener: TcpListener) -> Self {
+    fn run_election_timeout(&mut self, cluster: Vec<ServerMetaData>) -> Self {
 
         // check if you are leader, if so, don't run election timeout
         if self.state == ServerState::Leader {
@@ -126,14 +132,14 @@ impl Server for ServerMetaData {
 
         // spawn a thread to listen to server.port, tcp
         thread::spawn(move || {
-            for stream in listener.incoming() {
+            for stream in self.listener.incoming() {
                 let stream = stream.unwrap();
 
                 // if you receive a message, reset election timeout, else, start election
                 if stream.bytes().next().is_some() {
                     self.election_timeout = rand::thread_rng().gen_range(150..300);
                 } else {
-                    self.start_leader_election(vec![]);
+                    self.start_leader_election(cluster.to_owned());
                 }
 
             }
@@ -235,7 +241,7 @@ impl Server for ServerMetaData {
         }
     }
 
-    fn send_append_entries(&mut self) -> Self {
+    fn send_append_entries<T>(&mut self, x: Box<T>) -> Self {
         todo!()
     }
 
@@ -243,8 +249,43 @@ impl Server for ServerMetaData {
         todo!()
     }
 
-    fn handle_append_entries(&mut self) -> Self {
-        todo!()
+    fn handle_append_entries(&mut self, mut cluster: Vec<ServerMetaData>) {
+        // listen to server.port, tcp for append entries, don't crash if no messages, wait for election timeout
+        for stream in self.listener.incoming() {
+            let stream = stream.unwrap();
+
+            if stream.bytes().next().is_some() {
+                // check if you are leader, if so then append to your log and send append log message to followers
+                if self.state == ServerState::Leader {
+                    // append to log
+                    let mut reader = BufReader::new(stream);
+
+                    // only add u64 to log
+                    let mut buffer = [0; 8];
+                    reader.read_exact(&mut buffer).unwrap();
+                    let mut bytes = buffer.to_vec();
+                    self.log.append(&mut bytes);
+
+                    // send append entries to followers
+                    let append_entries_args = AppendEntriesArgs {
+                        term: self.current_term.clone(),
+                        leader_id: self.id,
+                        prev_log_index: self.log.len() as u64,
+                        entries: self.log.clone(),
+                        leader_commit: self.commit_index,
+                    };
+
+                    // send append entries to all other servers in cluster
+                    for server in cluster.iter_mut() {
+                        if server.id == server.id {
+                            continue;
+                        }
+
+                        server.send_append_entries(Box::new(append_entries_args.clone()));
+                    }
+                }
+            }
+        }
     }
 
     fn handle_request_vote(&mut self) -> Self {
